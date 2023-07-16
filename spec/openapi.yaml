@@ -1,0 +1,662 @@
+openapi: 3.0.0
+servers:
+  - url: //calculate-schedule-price-api.vercel.app
+    description: Demo server
+info:
+  description: |
+    # Introduction
+    This API is primarily aimed at publishers to demonstrate how to calculate a user's subscription cost based on a unit price and the number of issues published between 2 dates (Subscription Start and Subscription Expiry).
+    
+    # OpenAPI Specification
+    This API is documented in **OpenAPI format**.
+    It has been **extended** with some syntax to support Redoc API documentation.
+
+    # Authentication
+    This API does not yet support authentication in the form of API-Key, Basic Auth etc, instead, rate limiting is used.
+
+    # Rate Limiting 
+    This API uses rate limiting on the demo server. It is currently limited at 5 requests every 10 seconds. If the rate limit is exceeded, a 429 error status will be thrown. The response will contain the header `retry-after` which indicates how many seconds are remaining until you can try again.
+
+  title: Calculate Schedule Pricing
+  version: 1.0.0
+externalDocs:
+  description: Find out more about this API by visiting the GitHub repo
+  url: 'https://github.com/craigashields/calculate-schedule-price-api'
+tags:
+  - name: calculate schedule pricing
+    description: All APIs relating to the calculation of schedule pricing.
+x-tagGroups:
+  - name: General
+    tags:
+      - calculate schedule pricing
+paths:
+  /api/v1/calculate-schedule-price:
+    post:
+      tags:
+        - calculate schedule pricing
+      summary: Calculate schedule prices
+      description: >
+        Calculates a schedule based on a unit price, schedule and the period start date.
+
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/Request'
+      responses:
+        '200':
+          description: Success
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Response'
+        '400':
+          description: Bad Request
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+              example:
+                errorMessage: validation failure
+                validationErrors:
+                  - path: periodLength
+                    message: Required
+                  - path: periodType
+                    message: >-
+                      Invalid enum value. Expected 'day' | 'month' | 'year'.
+                      Received 'Month'
+        '429':
+          description: Too Many Requests
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '500':
+          description: Internal Server Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+              example:
+                errorMessage: Internal Server Error. Please try again later.
+  /api/v1/esuite-calc-schedule-price:
+    post:
+      tags:
+        - calculate schedule pricing
+      summary: eSuite Calculate Schedule Prices 
+      description: >
+
+        This endpoint is aimed at developers using eSuite's pricing update webhook. 
+        The request and response formats adhere to the eSuite pricing update webhook specification and is used when eSuite renews a subscription and needs to check for an updated price.
+
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/eSuiteRequest'
+      responses:
+        '200':
+          description: Success
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/eSuiteResponse'
+        '400':
+          description: Bad Request
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+              example:
+                errorMessage: validation failure
+                validationErrors:
+                  - path: periodLength
+                    message: Required
+                  - path: periodType
+                    message: >-
+                      Invalid enum value. Expected 'day' | 'month' | 'year'.
+                      Received 'Month'
+        '429':
+          description: Too Many Requests
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '500':
+          description: Internal Server Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+              example:
+                errorMessage: Internal Server Error. Please try again later.                
+components:
+  schemas:
+    ValidationErrors:
+      type: object
+      description: An object containing the specific validation error.
+      properties:
+        path:
+          type: string
+          description: The request field that has failed validation.
+        message:
+          type: string
+          description: The reason for validation failure.
+      example:
+        path: periodLength
+        message: Required
+    ErrorResponse:
+      type: object
+      description: >-
+        An object containing the error message and if required, the validation
+        errors.
+      properties:
+        errorMessage:
+          type: string
+          description: The error message.
+        validationErrors:
+          type: array
+          description: An array of validation failures.
+          items:
+            $ref: '#/components/schemas/ValidationErrors'
+    PeriodType:
+      type: string
+      description: The period type which dictates how the end date is calculated.
+      enum:
+        - day
+        - month
+        - year
+    ScheduleDays:
+      type: string
+      description: The schedule day
+      enum:
+        - monday
+        - tuesday
+        - wednesday
+        - thursday
+        - friday
+        - saturday
+        - sunday
+    Schedule:
+      type: object
+      properties:
+        dayOfWeek:
+          $ref: '#/components/schemas/ScheduleDays'
+        countOfDays:
+          type: number
+          description: >-
+            The number of occurances of the specific schedule day between the
+            start and end date.
+        schedulePrice:
+          type: number
+          description: The calculated price for the schedule.
+      example:
+        dayOfWeek: monday
+        countOfDays: 5
+        schedulePrice: 17.65
+    Item:
+      type: object
+      properties:
+        itemReference:
+          type: string
+          description: The reference of the item.
+        unitPrice:
+          type: number
+          description: The unit price of the item.
+        itemTotal:
+          type: number
+          description: The calculated total for the schedules against an item
+        schedules:
+          type: array
+          items:
+            $ref: '#/components/schemas/Schedule'
+      example:
+        itemReference: PRODUCT1
+        unitPrice: 3.53
+        itemTotal: 63.54
+        schedule:
+          - dayOfWeek: monday
+            countOfDays: 5
+            schedulePrice: 17.65
+          - dayOfWeek: thursday
+            countOfDays: 5
+            schedulePrice: 17.65
+    Response:
+      type: object
+      properties:
+        periodStartDate:
+          type: string
+          format: date-time
+          description: The start date of the period.
+        periodEndDate:
+          type: string
+          format: date-time
+          description: >-
+            The calculated end date of the period, based on periodLength and
+            periodType
+        totalPrice:
+          type: number
+          description: The calculated total price for all item schedules
+        items:
+          type: array
+          items:
+            $ref: '#/components/schemas/Item'
+      example:
+        periodStartDate: '2023-07-14T20:52:01Z'
+        periodEndDate: '2023-08-14T20:52:01.000Z'
+        totalPrice: 112.4
+        items:
+          - itemReference: PRODUCT1
+            unitPrice: 3.53
+            itemTotal: 63.54
+            schedules:
+              - dayOfWeek: monday
+                countOfDays: 5
+                schedulePrice: 17.65
+              - dayOfWeek: wednesday
+                countOfDays: 4
+                schedulePrice: 14.12
+              - dayOfWeek: friday
+                countOfDays: 4
+                schedulePrice: 14.12
+              - dayOfWeek: sunday
+                countOfDays: 5
+                schedulePrice: 17.65
+          - itemReference: PRODUCT2
+            unitPrice: 3.49
+            itemTotal: 48.86
+            schedules:
+              - dayOfWeek: monday
+                countOfDays: 5
+                schedulePrice: 17.45
+              - dayOfWeek: thursday
+                countOfDays: 4
+                schedulePrice: 13.96
+              - dayOfWeek: sunday
+                countOfDays: 5
+                schedulePrice: 17.45
+    Request:
+      type: object
+      properties:
+        periodStartDate:
+          type: string
+          format: date-time
+          description: The start date of the period.
+        periodLength:
+          type: number
+          description: The length of the period in units.
+        periodType:
+          $ref: '#/components/schemas/PeriodType'
+        excludeCurrentDay:
+          type: boolean
+          description: Flag to exclude the current day from calculations (optional).
+        items:
+          type: array
+          items:
+            type: object
+            properties:
+              itemReference:
+                type: string
+                description: The reference of the item.
+              unitPrice:
+                type: number
+                description: The unit price of the item.
+              schedule:
+                type: object
+                properties:
+                  monday:
+                    type: boolean
+                    description: >-
+                      Flag to indicate if the item is scheduled for Mondays
+                      (optional).
+                  tuesday:
+                    type: boolean
+                    description: >-
+                      Flag to indicate if the item is scheduled for Tuesdays
+                      (optional).
+                  wednesday:
+                    type: boolean
+                    description: >-
+                      Flag to indicate if the item is scheduled for Wednesdays
+                      (optional).
+                  thursday:
+                    type: boolean
+                    description: >-
+                      Flag to indicate if the item is scheduled for Thursdays
+                      (optional).
+                  friday:
+                    type: boolean
+                    description: >-
+                      Flag to indicate if the item is scheduled for Fridays
+                      (optional).
+                  saturday:
+                    type: boolean
+                    description: >-
+                      Flag to indicate if the item is scheduled for Saturdays
+                      (optional).
+                  sunday:
+                    type: boolean
+                    description: >-
+                      Flag to indicate if the item is scheduled for Sundays
+                      (optional).
+          required:
+            - itemReference
+            - unitPrice
+            - schedule
+      example:
+        periodStartDate: '2023-07-14T20:52:01Z'
+        periodLength: 1
+        periodType: month
+        excludeCurrentDay: true
+        items:
+          - itemReference: PRODUCT1
+            unitPrice: 3.53
+            schedule:
+              monday: true
+              tuesday: false
+              wednesday: true
+              thursday: false
+              friday: true
+              saturday: false
+              sunday: true
+          - itemReference: PRODUCT2
+            unitPrice: 3.49
+            schedule:
+              monday: true
+              tuesday: false
+              wednesday: false
+              thursday: true
+              friday: false
+              saturday: false
+              sunday: true
+      required:
+        - periodStartDate
+        - periodLength
+        - periodType
+        - items
+    eSuiteResponse:
+      type: object
+      properties:
+        productReferences:
+          type: array
+          items:
+            $ref: '#/components/schemas/ProductReferenceResponse'
+    eSuiteRequest:
+      type: object
+      properties:
+        AccountId:
+          type: integer
+          description: The unique identifier created by MPP Global when the account was created in eSuite. This value is fixed and will never be updated.
+        AccountReference:
+          type: string
+          description: The unique identifier for the account used within the eSuite API.
+        ClientUserId:
+          type: string
+          description: An optional parameter on an account that is typically populated when eSuite is not being used as the primary identity provider. It is often seen that this value matches the unique identifier for the account in the external identity providers system.           
+        EmailAddress:
+          type: string
+          description: The email address that has been associated to the account upon registration or a subsequent update.
+        PaymentMethod:
+          type: string
+          description: The mechanism for payment on the subscription.
+        Currency:
+          type: string
+          description: The currency in which the subscription is charged.
+        ServiceId:
+          type: integer
+          description: The dynamically priced service the customer has an active subscription to.
+        ContractReference:
+          type: string
+          description: Reference for the contract (service) associated with the subscription.
+        FrequencyUnit:
+          type: integer
+          description: Used in conjunction with the frequency period. E.g. if the period is Months, a 1 here would mean the contract is a 1 month contract.
+        FrequencyPeriod:
+          type: string
+          description: Used in conjunction with the frequency Units. E.g. if the unit is 7, Days here would mean the contract is a 7 day contract.
+        cartReference:
+          type: string
+          description: Reference for the cart associated with the subscription.
+        ProductReferences:
+          type: array
+          description: Lists the individual products in the bundle which require pricing.
+          items:
+            $ref: '#/components/schemas/ProductReference'
+        Address:
+          $ref: '#/components/schemas/Address'
+        CustomSubscriptionParameters:
+          type: array
+          description: Contains an array of custom parameters associated with the subscription.
+          items:
+            $ref: '#/components/schemas/CustomParameter'
+      required: 
+        - FrequencyUnit
+        - FrequencyPeriod
+        - ProductReferences
+      example: 
+        AccountId: 766444
+        AccountReference: 0010AU41Y0Q5SQVS12
+        ClientUserId: ''
+        EmailAddress: john.smith@mpp.com
+        PaymentMethod: CreditCard
+        Currency: GBP
+        ServiceId: 36327
+        ContractReference: 0010CKWR79CO16GAC1
+        FrequencyUnit: 1
+        FrequencyPeriod: Months
+        cartReference: 0010CRWR79CO16GAC4
+        ProductReferences:
+          - ProductId: 277576
+            ProductReference: 0010BOXAT78J047J52
+            grossAmount: 10.3
+            netAmount: 8.6
+            taxAmount: 1.7
+            Currency: EUR
+            CustomProductParameters:
+              - ParameterReference: 001BPYHZPXS54R2DS1
+                ParameterName: Title
+                ParameterValue: Digital Magazine
+              - ParameterReference: 001BP7QWUIVIK3DLE2
+                ParameterName: Description
+                ParameterValue: All of your favourite content
+              - ParameterReference: 001BPQLCL0LWRHTOL2
+                ParameterName: TaxCategory
+                ParameterValue: StandardRule
+            CustomLineItemParameters:
+              - ParameterReference: 001BP7QWUIVIK3DLE2
+                ParameterName: TaxID
+                ParameterValue: ABC123
+              - ParameterReference: 001BPQLCL0LWRHTOL2
+                ParameterName: PriceCode
+                ParameterValue: EFG9897
+          - ProductId: 277571
+            ProductReference: 0010B4Q8TY7L9Z0QE3
+            grossAmount: 10.3
+            netAmount: 8.6
+            taxAmount: 1.7
+            Currency: EUR
+            CustomProductParameters:
+              - ParameterReference: 001BPYHZPXS54R2DS1
+                ParameterName: Title
+                ParameterValue: Physical Magazine
+              - ParameterReference: 001BP7QWUIVIK3DLE2
+                ParameterName: Description
+                ParameterValue: All of your favourite content in print
+            CustomLineItemParameters:
+              - ParameterReference: 001BP7QWUIVIK3DLE2
+                ParameterName: TaxID
+                ParameterValue: ABC123
+              - ParameterReference: 001BPQLCL0LWRHTOL2
+                ParameterName: PriceCode
+                ParameterValue: EFG9897
+        Address:
+          HouseName: TestHouse
+          HouseNumber: '10'
+          Street: Some Street
+          TownCity: Some Village
+          State: ''
+          County: Merseyside
+          PostCode: WA5 1GV
+          Country: United Kingdom
+          IsDefault: false
+          DefaultInvoice: false
+          DefaultShipping: false
+        CustomSubscriptionParameters:
+          - ParameterReference: 001SPPDUFKCIBWH7K2
+            ParameterName: ExternalPriceCode
+            ParameterValue: XYZ
+    ProductReference:
+      type: object
+      properties:
+        ProductId:
+          type: integer
+          description: Unique identifier used within the eSuite platform to identify a product.
+        ProductReference:
+          type: string
+          description: Unique reference used in the eSuite API to identify a product.
+        grossAmount:
+          type: number
+          description: The total current price for the product from the cart, including tax
+        netAmount:
+          type: number
+          description: The current price for the product from the cart, excluding tax
+        taxAmount:
+          type: number
+          description: The tax amount associated with the product from the cart
+        Currency:
+          type: string
+          description: 3 character code identifying the currency associated with the price information for the product
+        CustomProductParameters:
+          type: array
+          description: Array of all product parameters associated with the product.
+          items:
+            $ref: '#/components/schemas/CustomParameter'
+        CustomLineItemParameters:
+          type: array
+          description: contains an array of custom line item parameters associated with the subscription's cart.
+          items:
+            $ref: '#/components/schemas/CustomParameter'
+      required: 
+       - ProductReference
+       - Currency
+      example:
+        ProductId: 277576
+        ProductReference: 0010BOXAT78J047J52
+        grossAmount: 10.3
+        netAmount: 8.6
+        taxAmount: 1.7
+        Currency: EUR
+        CustomProductParameters:
+          - ParameterReference: 001BPYHZPXS54R2DS1
+            ParameterName: Title
+            ParameterValue: Digital Magazine
+          - ParameterReference: 001BP7QWUIVIK3DLE2
+            ParameterName: Description
+            ParameterValue: All of your favourite content
+          - ParameterReference: 001BPQLCL0LWRHTOL2
+            ParameterName: TaxCategory
+            ParameterValue: StandardRule
+        CustomLineItemParameters:
+          - ParameterReference: 001BP7QWUIVIK3DLE2
+            ParameterName: TaxID
+            ParameterValue: ABC123
+          - ParameterReference: 001BPQLCL0LWRHTOL2
+            ParameterName: PriceCode
+            ParameterValue: EFG9897      
+    ProductReferenceResponse:
+      type: object
+      properties:
+        productReference:
+          type: string
+          description: The unique reference to the Product
+        grossAmount:
+          type: number
+          description: New Gross Amount to charge for the next period
+        netAmount:
+          type: number
+          description: New Net Amount for the next period
+        taxAmount:
+          type: number
+          description: Tax Amount for the next period
+        description:
+          type: string    
+          description: Line item description
+      example: 
+        productReferences:
+          - productReference: "0010BOXAT78J047J52"
+            grossAmount: 12
+            netAmount: 12
+            taxAmount: 0
+            description: "Newspaper - Monday"
+          - productReference: "0010B4Q8TY7L9Z0QE3"
+            grossAmount: 9.6
+            netAmount: 9.6
+            taxAmount: 0
+            description: "Newspaper - Thursday"      
+    Address:
+      type: object
+      description: Contains the address details associated with the default account from the address.
+      properties:
+        HouseName:
+          type: string
+          description: The house name, if there is one.
+        HouseNumber: 
+          type: string
+          description: The house number.
+        Street:
+          type: string
+          description: Street name.
+        TownCity:
+          type: string
+          description: The Town or City.
+        State:
+          type: string
+          description: The State
+        County:
+          type: string
+          description: The County
+        PostCode:
+          type: string
+          description: The Postal / Zip Code of the address.
+        Country:
+          type: string
+          description: Country
+        IsDefault:
+          type: boolean
+          description: Indicates whether the address is the default address associated with the account.
+        DefaultInvoice:
+          type: boolean
+          description: Indicates whether the address is the default invoice address associated with the account.
+        DefaultShipping:
+          type: boolean
+          description: Indicates whether the address is the default shipping address associated with the account.
+      example: 
+        HouseName: TestHouse
+        HouseNumber: '10'
+        Street: Some Street
+        TownCity: Some Village
+        State: ''
+        County: Merseyside
+        PostCode: WA5 1GV
+        Country: United Kingdom
+        IsDefault: false
+        DefaultInvoice: false
+        DefaultShipping: false      
+    CustomParameter:
+      type: object
+      properties:
+        ParameterReference:
+          type: string
+          description: Unique reference used in the eSuite API to identify an instance of a parameter.
+        ParameterName:
+          type: string
+          description: The configured name for the parameter.
+        ParameterValue:
+          type: string
+          description: The value assigned to the parameter.
+      example: 
+          ParameterReference: 001SPPDUFKCIBWH7K2
+          ParameterName: ExternalPriceCode
+          ParameterValue: XYZ
